@@ -89,6 +89,8 @@ class TypeChecker(NodeVisitor):
     def visit_RelBinExpr(self, node):
         type_left = self.visit(node.left)
         type_right = self.visit(node.right)
+        if self.isErrorType(type_left) or self.isErrorType(type_right):
+            return ErrorType()
         type_op = node.op
         if operatoreration_results[str(type_op)][str(type_left)][str(type_right)] is None:
             print("Semantic error at line {0}, column {1}: relational operation has invalid operand types"
@@ -100,6 +102,8 @@ class TypeChecker(NodeVisitor):
     def visit_ArithBinExpr(self, node):
         type_left = self.visit(node.left)
         type_right = self.visit(node.right)
+        if self.isErrorType(type_left) or self.isErrorType(type_right):
+            return ErrorType()
         type_op = node.op
         if operatoreration_results[str(type_op)][str(type_left)][str(type_right)] is None:
             print("Semantic error at line {0}, column {1}: arithmetic operation has invalid operand types"
@@ -125,6 +129,8 @@ class TypeChecker(NodeVisitor):
 
     def visit_AssignmentStmt(self, node):
         expr_type = self.visit(node.right)
+        if self.isErrorType(expr_type):
+            return ErrorType()
         if node.op in ['+=', '-=', '*=', '/=']:
             variable_type = self.visit(node.left)
             if operatoreration_results[str(node.op)][str(variable_type)][str(expr_type)] is None and variable_type is not None:
@@ -194,6 +200,8 @@ class TypeChecker(NodeVisitor):
         variable_type = self.visit(node.id)
         if variable_type is None:
             return ErrorType()
+        if self.isErrorType(variable_type):
+            return ErrorType()
         if not isinstance(variable_type.type, VectorType) and not isinstance(variable_type.type, MatrixType):
             print("Semantic error at line {0}, column {1}: trying to dereference a non-matrix/non-vector object"
                   .format(node.line, node.col))
@@ -259,11 +267,15 @@ class TypeChecker(NodeVisitor):
         
     def visit_RangeExpr(self, node):
         type = self.visit(node.left)
+        if self.isErrorType(type):
+            return ErrorType()
         if str(type) != 'int':
             print("Semantic error at line {0}, column {1}: not allowed range expression type: {2}"
                   .format(node.left.line, node.left.col, str(type)))
             self.errors_encountered = True
         type = self.visit(node.right)
+        if self.isErrorType(type):
+            return ErrorType()
         if str(type) != 'int':
             print("Semantic error at line {0}, column {1}: not allowed range expression type: {2}"
                   .format(node.right.line, node.right.col, str(type)))
@@ -272,6 +284,8 @@ class TypeChecker(NodeVisitor):
 
     def visit_UnaryExpr(self, node):
         type_val = self.visit(node.val)
+        if self.isErrorType(type_val) or type_val is None:
+            return ErrorType()
         type_op = node.op
         if operatoreration_results[str(type_op)][str(type_val)][None] is None:
             print("Semantic error at line {0}, column {1}: unary operation has an invalid operand type"
@@ -332,7 +346,7 @@ class TypeChecker(NodeVisitor):
     def visit_Id(self, node):
         symbol_variable = self.symbol_table.get(node.identifier)
         if symbol_variable is None:
-            print("Semantic error at line {0}, column {1}: unkown variable: {2}"
+            print("Semantic error at line {0}, column {1}: unknown variable: {2}"
                   .format(node.line, node.col, node.identifier))
             self.errors_encountered = True
             return None
@@ -342,26 +356,7 @@ class TypeChecker(NodeVisitor):
     def visit_Error(self, node):
         pass
 
-    
-def transformTypeToStr(my_type):
-    if type(my_type) == str:
-        return my_type
-    if my_type == int:
-        return 'int'
-    if my_type == float:
-        return 'float'
-    if my_type == str:
-        return 'string'
-    if isinstance(my_type, VariableSymbol):
-        if type(my_type.type) == str:
-            return my_type.type
-        if my_type.type == int:
-            return 'int'
-        if my_type.type == float:
-            return 'float'
-        if my_type.type == str:
-            return 'string'
-        if isinstance(my_type.type, MatrixType):
-            return 'matrix'
-    if isinstance(my_type, MatrixType):
-        return 'matrix'
+    def isErrorType(self, test_object):
+        error_var = (isinstance(test_object, VariableSymbol) and isinstance(test_object.type, ErrorType))
+        direct_err = isinstance(test_object, ErrorType)
+        return error_var or direct_err
