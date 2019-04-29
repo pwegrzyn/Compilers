@@ -16,9 +16,6 @@ precedence = (
     # Dangling-else solution
     ("left", 'IF'),
     ("left", 'ELSE'),
-    # ID and LEFTBRACKET needed in order to avoid shift/reduce conflict in mutable (variable or matrix selector)
-    ("left", 'ID'),
-    ("left", '['),
     ("nonassoc", '<', '>', 'LTE', 'GTE', 'EQ', 'NEQ'),
     ("left", '+', '-', 'DOTADD', 'DOTSUB'),
     ("left", '*', '/', 'DOTMUL', 'DOTDIV'),
@@ -81,9 +78,7 @@ def p_selectionStmt(p):
         p[0] = AST.IfElseStmt(p[3], p[5], p[7], p.lineno(1), scanner.find_tok_column_by_lexpos(p.lexpos(1)))
 
 def p_selectionStmt_error(p):
-    """selectionStmt : IF '(' simpleExpression ')' error %prec IF
-                     | IF '(' simpleExpression ')' error ELSE stmt
-                     | IF '(' error ')' stmt %prec IF
+    """selectionStmt : IF '(' error ')' stmt %prec IF
                      | IF '(' error ')' stmt ELSE stmt"""
     print('Malformed IF-statement!')
 
@@ -105,12 +100,16 @@ def p_forIterationStmt(p):
     p[0] = AST.ForStmt(AST.Id(p[2], p.lineno(2), scanner.find_tok_column_by_lexpos(p.lexpos(2))), 
         p[4], p[5], p.lineno(1), scanner.find_tok_column_by_lexpos(p.lexpos(1)))
 
-def p_forIterationStmt_error(p):
-    """forIterationStmt : FOR ID '=' error stmt"""
-    print('Error in range expression in for statement!')
+def p_rangeExpressionAllowable(p):
+    """rangeExpressionAllowable : scalarConst
+                                | ID"""
+    if type(p[1]) != str:
+        p[0] = p[1]
+    else:
+        p[0] = AST.Id(p[1], p.lineno(1), scanner.find_tok_column_by_lexpos(p.lexpos(1)))
 
 def p_rangeExpression(p):
-    """rangeExpression : arithExpression ':' arithExpression"""
+    """rangeExpression : rangeExpressionAllowable ':' rangeExpressionAllowable"""
     p[0] = AST.RangeExpr(p[1], p[3], p.lineno(1), scanner.find_tok_column_by_lexpos(p.lexpos(1)))
 
 def p_returnStmt(p):
@@ -161,14 +160,6 @@ def p_expression(p):
     else:
         p[0] = p[1]
 
-def p_expression_error(p):
-    """expression : mutable '=' error
-                  | mutable ADDASSIGN error
-                  | mutable SUBASSIGN error
-                  | mutable MULASSIGN error
-                  | mutable DIVASSIGN error"""
-    print('Malformed  assignment expression!')
-
 def p_simpleExpression(p):
     """simpleExpression : arithExpression LTE arithExpression
                         | arithExpression '<' arithExpression
@@ -205,17 +196,13 @@ def p_uminusExpression(p):
     """uminusExpression : '-' arithExpression %prec UMINUS"""
     p[0] = AST.UnaryExpr(p[1], p[2], p.lineno(1), scanner.find_tok_column_by_lexpos(p.lexpos(1)))
 
-def p_uminusExpression_error(p):
-    """uminusExpression : '-' error %prec UMINUS"""
-    print('Malformed value after negation operator!')
-
 def p_value(p):
     """value : immutable
              | mutable"""
     p[0] = p[1]
 
 def p_mutable(p):
-    """mutable : ID %prec ID
+    """mutable : ID
                | reference"""
     if type(p[1]) == str:
         p[0] = AST.Id(p[1], p.lineno(1), scanner.find_tok_column_by_lexpos(p.lexpos(1)))
@@ -226,10 +213,6 @@ def p_reference(p):
     """reference : ID '[' argList ']'"""
     p[0] = AST.ReferenceStmt(AST.Id(p[1], p.lineno(1), scanner.find_tok_column_by_lexpos(p.lexpos(1))), 
         p[3], p.lineno(1), scanner.find_tok_column_by_lexpos(p.lexpos(1)))
-
-def p_reference_error(p):
-    """reference : ID '[' error ']'"""
-    print('Malformed index in matrix/vector selection operator!')
 
 def p_immutable(p):
     """immutable : '(' expression ')'
